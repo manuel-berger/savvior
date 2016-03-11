@@ -30,7 +30,13 @@ Grid.prototype.setup = function(options, callback) {
   // Save heights before moving items
   var itemsHeights = [];
   each(this.element.children, function(item) {
-    itemsHeights.push(item.offsetHeight);
+    var marginTop = 0;
+    if (item.currentStyle) { // IE
+      marginTop = item.currentStyle.marginTop;
+    } else if (document.defaultView) {
+      marginTop = document.defaultView.getComputedStyle(item, '').getPropertyValue('margin-top');
+    }
+    itemsHeights.push(item.offsetHeight+parseInt(marginTop, 10));
   });
 
   // Retrieve the list of items from the grid itself.
