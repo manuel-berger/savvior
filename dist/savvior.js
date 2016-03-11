@@ -163,6 +163,12 @@ Grid.prototype.setup = function(options, callback) {
     return false;
   }
 
+  // Save heights before moving items
+  var itemsHeights = [];
+  each(this.element.children, function(item) {
+    itemsHeights.push(item.offsetHeight);
+  });
+
   // Retrieve the list of items from the grid itself.
   var range = document.createRange();
   var items = document.createElement('div');
@@ -173,7 +179,7 @@ Grid.prototype.setup = function(options, callback) {
   window.requestAnimationFrame(function() {
     addToDataset(items, 'columns', 0);
 
-    this.addColumns(items, options);
+    this.addColumns(items, options, itemsHeights);
     this.status = true;
 
     isFunction(callback) && callback.call(this);
@@ -183,7 +189,7 @@ Grid.prototype.setup = function(options, callback) {
 /**
  * Create columns with the configured classes and add a list of items to them.
  */
-Grid.prototype.addColumns = function(items, options) {
+Grid.prototype.addColumns = function(items, options, itemsHeights) {
   var columnClasses = ['column', 'size-1of'+ options.columns];
   var columnsFragment = document.createDocumentFragment();
   var columnsItems = [];
@@ -194,9 +200,28 @@ Grid.prototype.addColumns = function(items, options) {
   // Filter out items when a filter is given.
   this.filterItems(items, options.filter);
 
-  while (i-- !== 0) {
-    childSelector = '[data-columns] > *:nth-child(' + options.columns + 'n-' + i + ')';
-    columnsItems.push(items.querySelectorAll(childSelector));
+  if (itemsHeights && !options.filter) {
+    var columnsHeights = [];
+    while (i-- !== 0) {
+      columnsItems.push([]);
+      columnsHeights.push(0);
+    }
+    for (var j = 0; j < items.children.length; j++) {
+      var indexOfLowestHeightColumn = 0;
+      for (var k = 0; k < columnsHeights.length; k++) {
+          if (columnsHeights[k] < columnsHeights[indexOfLowestHeightColumn]) {
+              indexOfLowestHeightColumn = k;
+          }
+      }
+
+      columnsItems[indexOfLowestHeightColumn].push(items.children[j]);
+      columnsHeights[indexOfLowestHeightColumn] = columnsHeights[indexOfLowestHeightColumn] + itemsHeights[j];
+    }
+  } else {
+    while (i-- !== 0) {
+      childSelector = '[data-columns] > *:nth-child(' + options.columns + 'n-' + i + ')';
+      columnsItems.push(items.querySelectorAll(childSelector));
+    }
   }
 
   each(columnsItems, function(rows) {
@@ -377,9 +402,9 @@ Grid.prototype.restore = function(callback, scope) {
 };
 
 /**
- * Append items to a Grid.
+ * Add items to a Grid.
  *
- * This triggers the event 'savvior:appendItems' with the following object in
+ * This triggers the event 'savvior:addItems' with the following object in
  * Event.detail:
  *   - element: the Grid instance element
  *   - grid: the Grid instance
@@ -393,8 +418,8 @@ Grid.prototype.restore = function(callback, scope) {
  *   Optional.
  * @return {Grid}              Grid instance.
  */
-Grid.prototype.appendItems = function (elements, options, callback) {
-  var evt = new CustomEvent('savvior:appendItems', {
+Grid.prototype.addItems = function (elements, options, callback) {
+  var evt = new CustomEvent('savvior:addItems', {
     detail: {
       element: this.element,
       grid: this
@@ -688,7 +713,7 @@ GridDispatch.prototype.ready = function(selector) {
 };
 
 /**
- * Append elements to a grid
+ * Add elements to a grid.
  *
  * @param  {String}   gridSelector The selector used to created the grid.
  * @param  {Mixed}    elements     A string, array of Nodes or a NodeList
@@ -701,8 +726,10 @@ GridDispatch.prototype.ready = function(selector) {
  * @param  {Function} callback     Callback function to execute after the
  *   elements are appended. The callback is called with the Grid instance.
  *   Optional.
+ *
  * @return {Object}                GridDispatch instance.
- * @see Grid.prototype.appendItems
+ *
+ * @see Grid.prototype.addItems
  */
 GridDispatch.prototype.addItems = function (gridSelector, elements, options, callback) {
   var cb;
@@ -725,12 +752,12 @@ GridDispatch.prototype.addItems = function (gridSelector, elements, options, cal
   if (elements instanceof Array) {
     each(elements, function (el) {
       if (!(el instanceof Node)) {
-        throw new TypeError('Items added must be Nodes, Arrays of Nodes or NodeLists.');
+        throw new TypeError('Supplied element in array is not instance of Node.');
       }
     }, this);
   }
   else if (!(elements instanceof Node) && !(elements instanceof NodeList)) {
-    throw new TypeError('Items added must be Nodes, Arrays of Nodes or NodeLists.');
+    throw new TypeError('Supplied argument is not a Node or a NodeList.');
   }
 
   if (isFunction(options)) {
@@ -743,7 +770,7 @@ GridDispatch.prototype.addItems = function (gridSelector, elements, options, cal
   }
 
   each(this.grids[gridSelector].grids, function(grid) {
-    grid.appendItems(elements, opts, cb);
+    grid.addItems(elements, opts, cb);
   });
 
   return this;

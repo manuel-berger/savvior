@@ -27,6 +27,12 @@ Grid.prototype.setup = function(options, callback) {
     return false;
   }
 
+  // Save heights before moving items
+  var itemsHeights = [];
+  each(this.element.children, function(item) {
+    itemsHeights.push(item.offsetHeight);
+  });
+
   // Retrieve the list of items from the grid itself.
   var range = document.createRange();
   var items = document.createElement('div');
@@ -37,7 +43,7 @@ Grid.prototype.setup = function(options, callback) {
   window.requestAnimationFrame(function() {
     addToDataset(items, 'columns', 0);
 
-    this.addColumns(items, options);
+    this.addColumns(items, options, itemsHeights);
     this.status = true;
 
     isFunction(callback) && callback.call(this);
@@ -47,7 +53,7 @@ Grid.prototype.setup = function(options, callback) {
 /**
  * Create columns with the configured classes and add a list of items to them.
  */
-Grid.prototype.addColumns = function(items, options) {
+Grid.prototype.addColumns = function(items, options, itemsHeights) {
   var columnClasses = ['column', 'size-1of'+ options.columns];
   var columnsFragment = document.createDocumentFragment();
   var columnsItems = [];
@@ -58,9 +64,28 @@ Grid.prototype.addColumns = function(items, options) {
   // Filter out items when a filter is given.
   this.filterItems(items, options.filter);
 
-  while (i-- !== 0) {
-    childSelector = '[data-columns] > *:nth-child(' + options.columns + 'n-' + i + ')';
-    columnsItems.push(items.querySelectorAll(childSelector));
+  if (itemsHeights && !options.filter) {
+    var columnsHeights = [];
+    while (i-- !== 0) {
+      columnsItems.push([]);
+      columnsHeights.push(0);
+    }
+    for (var j = 0; j < items.children.length; j++) {
+      var indexOfLowestHeightColumn = 0;
+      for (var k = 0; k < columnsHeights.length; k++) {
+          if (columnsHeights[k] < columnsHeights[indexOfLowestHeightColumn]) {
+              indexOfLowestHeightColumn = k;
+          }
+      }
+
+      columnsItems[indexOfLowestHeightColumn].push(items.children[j]);
+      columnsHeights[indexOfLowestHeightColumn] = columnsHeights[indexOfLowestHeightColumn] + itemsHeights[j];
+    }
+  } else {
+    while (i-- !== 0) {
+      childSelector = '[data-columns] > *:nth-child(' + options.columns + 'n-' + i + ')';
+      columnsItems.push(items.querySelectorAll(childSelector));
+    }
   }
 
   each(columnsItems, function(rows) {
